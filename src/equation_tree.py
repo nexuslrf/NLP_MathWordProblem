@@ -1,5 +1,8 @@
 from util import *
+import numpy as np
 
+UNKNOWN = 999
+CONSTANT = 0
 
 
 class EquationTree:
@@ -10,9 +13,25 @@ class EquationTree:
         self.operator = operator
 
     @classmethod
-    def build_with_exp(cls, exp):
-        if exp[0] == '(' and exp[-1] == ')':
-            exp = exp[1:-1]
+    def build_with_exp(cls, ex):
+        exp = ex[:]
+        # deal with ()
+        level = 0
+        levels = []
+        for i in range(len(exp)):
+            # in reverse order
+            if exp[i] == '(':
+                level += 1
+            if exp[i] == ')':
+                level -= 1
+            levels.append(level)
+        if len(exp) > 1 and np.min(levels[:-1]) > 0:
+            if exp[0] == '(' and exp[-1] == ')':
+                levels = (np.array(levels) - 1).tolist()
+                exp = exp[1:-1]
+            else:
+                print(exp)
+                raise ArithmeticError
         # deal with pure number
         try:
             number = float(exp)
@@ -31,18 +50,6 @@ class EquationTree:
             t_left = cls.build_with_exp(exp[0: index])
             t_right = cls.build_with_exp(exp[index + 1:])
             return cls(op, t_left, t_right)
-
-
-        # deal with ()
-        level = 0
-        levels = []
-        for i in range(len(exp)):
-            # in reverse order
-            if exp[i] == '(':
-                level += 1
-            if exp[i] == ')':
-                level -= 1
-            levels.append(level)
 
         # find the rightest + or -
         index = -1
@@ -107,6 +114,8 @@ class EquationTree:
 
     def equals(self, tree2):
         result = True
+        if type(self) != type(tree2):
+            result = False
         if type(self.left) == type(self):
             result = result and self.left.equals(tree2.left)
         else:
@@ -116,6 +125,21 @@ class EquationTree:
         else:
             result = result and (self.right == tree2.right)
         result = result and (self.operator == tree2.operator)
+        if self.operator == Operators.equal or self.operator == Operators.plus or self.operator == Operators.times:
+            result2 = True
+            if type(self) != type(tree2):
+                result2 = False
+            if type(self.left) == type(self):
+                result2 = result2 and self.left.equals(tree2.right)
+            else:
+                result2 = result2 and (self.left == tree2.right)
+            if type(self.right) == type(self):
+                result2 = result2 and self.right.equals(tree2.left)
+            else:
+                result2 = result2 and (self.right == tree2.left)
+            result2 = result2 and (self.operator == tree2.operator)
+            return result or result2
+
         return result
 
     def calculate(self):
@@ -137,17 +161,115 @@ class EquationTree:
             return left_val / right_val
         assert 0
 
+    def reverse(self):
+        return EquationTree(self.operator, self.right, self.left)
+
+
+class TemplateTree(EquationTree):
+    @classmethod
+    def build_with_exp(cls, ex):
+        exp = ex[:]
+        # deal with ()
+        level = 0
+        levels = []
+        for i in range(len(exp)):
+            # in reverse order
+            if exp[i] == '(':
+                level += 1
+            if exp[i] == ')':
+                level -= 1
+            levels.append(level)
+        if len(ex) > 1 and np.min(levels[:-1]) > 0:
+            if exp[0] == '(' and exp[-1] == ')':
+                exp = exp[1:-1]
+                levels = (np.array(levels)-1).tolist()
+            else:
+                print(exp)
+                raise ArithmeticError
+        # replace all '-'s
+        exp = exp.replace('*-', '*')
+        exp = exp.replace('/-', '/')
+        if exp[0] == '-':
+            exp = exp[1:]
+        # deal with pure number
+        try:
+            number = float(exp)
+            if number != UNKNOWN:
+                number = CONSTANT
+            return number
+        except:
+            pass
+        # deal with '='
+        index = -1
+        op = None
+        for i in range(len(exp) - 1, -1, -1):
+            if exp[i] == '=':
+                index = i
+                op = Operators.equal
+        if index != -1:
+            # expression
+            t_left = cls.build_with_exp(exp[0: index])
+            t_right = cls.build_with_exp(exp[index + 1:])
+            return cls(op, t_left, t_right)
+
+        # find the rightest + or -
+        index = -1
+        op = None
+        for i in range(len(exp) - 1, -1, -1):
+            if (levels[i] == 0) and (exp[i] == '+' or exp[i] == '-'):
+                index = i
+                if exp[i] == '+':
+                    op = Operators.plus
+                elif exp[i] == '-':
+                    op = Operators.minus
+                else:
+                    assert 0
+        if index != -1:
+            # expression
+            t_left = cls.build_with_exp(exp[0: index])
+            t_right = cls.build_with_exp(exp[index + 1:])
+            return cls(op, t_left, t_right)
+
+        # find * and /
+        index = -1
+        op = None
+        for i in range(len(exp) - 1, -1, -1):
+            if (levels[i] == 0) and (exp[i] == '*' or exp[i] == '/'):
+                index = i
+                if exp[i] == '*':
+                    op = Operators.times
+                elif exp[i] == '/':
+                    op = Operators.divide
+                else:
+                    assert 0
+                break
+        if index != -1:
+            # expression
+            t_left = cls.build_with_exp(exp[0: index])
+            t_right = cls.build_with_exp(exp[index + 1:])
+            return cls(op, t_left, t_right)
+        raise NotImplementedError
+
+    def reverse(self):
+        return TemplateTree(self.operator, self.right, self.left)
+
 
 if __name__ == "__main__":
-    left = EquationTree(operator=Operators.plus, left=1, right=3)
-    tree = EquationTree(operator=Operators.times, left=left, right=4)
-    tree.print_tree()
+    # left = EquationTree(operator=Operators.plus, left=1, right=3)
+    # tree = EquationTree(operator=Operators.times, left=left, right=4)
+    # tree.print_tree()
 
-    tree2 = EquationTree.build_with_exp("(1+3)*4")
+    tree2 = TemplateTree.build_with_exp("2*2=999")
     tree2.print_tree()
-    print(tree2.calculate())
+    tree2.reverse().print_tree()
 
-    print(tree.equals(tree2))
+    tree3 = TemplateTree.build_with_exp("999=2*2")
+
+    print(tree2.reverse().equals(tree3))
+
+    # print(tree2.calculate())
+    #
+    # print(tree.equals(tree2))
 
 
 
