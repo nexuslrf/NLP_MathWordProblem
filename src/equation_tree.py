@@ -1,7 +1,7 @@
 from util import *
 import numpy as np
 
-UNKNOWN = 999
+UNKNOWN = 999999
 CONSTANT = 0
 
 

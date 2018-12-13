@@ -1,5 +1,7 @@
 import os
 from equation_tree import *
+from re import sub
+import json
 
 
 def is_same_template(exp1, exp2):
@@ -8,7 +10,7 @@ def is_same_template(exp1, exp2):
         return TemplateTree.build_with_exp(e)
     tree1 = exp_to_tree(exp1)
     tree2 = exp_to_tree(exp2)
-    return tree1.equals(tree2)
+    return tree1.equals(tree2) or tree1.reverse().equals(tree2)
 
 
 def standardize(eq):
@@ -28,20 +30,84 @@ def standardize(eq):
     return equation, exp
 
 
+def clean_text(t):
+    text = t[:]
+    text = str(text)
+    text = text.lower()
+
+    text = sub(r"[^A-Za-z0-9^,!.\/'+-=]", " ", text)
+    text = sub(r"what's", "what is ", text)
+    text = sub(r"\'s", " ", text)
+    text = sub(r"\'ve", " have ", text)
+    text = sub(r"can't", "cannot ", text)
+    text = sub(r"n't", " not ", text)
+    text = sub(r"i'm", "i am ", text)
+    text = sub(r"\'re", " are ", text)
+    text = sub(r"\'d", " would ", text)
+    text = sub(r"\'ll", " will ", text)
+    text = sub(r",", " ", text)
+    text = sub(r"\.", " ", text)
+    text = sub(r"!", " ! ", text)
+    text = sub(r"\/", " ", text)
+    text = sub(r"\^", " ^ ", text)
+    text = sub(r"\n", " + ", text)
+    text = sub(r"\+", " ", text)
+    text = sub(r"\-", " - ", text)
+    text = sub(r"\=", " = ", text)
+    text = sub(r"'", " ", text)
+    text = sub(r"(\d+)(k)", r"\g<1>000", text)
+    text = sub(r":", " : ", text)
+    text = sub(r" e g ", " eg ", text)
+    text = sub(r" b g ", " bg ", text)
+    text = sub(r" u s ", " american ", text)
+    text = sub(r"\0s", "0", text)
+    text = sub(r" 9 11 ", "911", text)
+    text = sub(r"e - mail", "email", text)
+    text = sub(r"j k", "jk", text)
+    text = sub(r"\s{2,}", " ", text)
+    return text
+
+
+def output_template_label(tuples):
+    with open("template_labels.csv", 'w') as f1:
+        with open("template_id.csv", 'w') as f2:
+            f2.write('tid, template, count\n')
+            f1.write('qid, tid\n')
+            for i in range(len(tuples)):
+                f2.write(str(i) + ', ' +
+                         str(tuples[i][0][0][1]).replace(str(UNKNOWN), 'x') +
+                         ', ' + str(len(tuples[i][0])) + '\n')
+                # ignore templates that are too unusual
+                if len(tuples[i][0]) < 3:
+                    continue
+                for tp in tuples[i][0]:
+                    qid = str(tp[0])
+                    tid = str(i)
+                    f1.write(qid + ', ' + tid + '\n')
+
+
+
+
+
 if __name__ == "__main__":
     # TemplateTree.build_with_exp('(999/4)-3=5/4').print_tree()
     templates_tuples = []  # elements:tuple(raw_text_list, template_tree)
     with open(os.path.abspath('../data/eval_cleaned.json'), 'r', encoding='UTF-8') as f:
         raw_data = f.read()
 
-    json_data = eval(raw_data)
+    json_data = json.loads(raw_data)
     print(len(json_data))
 
     single_equ = 0
+    qid = 0
 
     for quest in json_data:
         equation = str(quest["equations"])
         text = str(quest["text"])
+        text = clean_text(text)
+        if len(text.split()) < 3:
+            continue
+        qid += 1
         if str(equation).count("\r\n") == 1:
             equation, exp = standardize(equation)
             try:
@@ -50,17 +116,18 @@ if __name__ == "__main__":
                 exp_tree = TemplateTree.build_with_exp(exp)
                 for templates_tuple in templates_tuples:
                     if exp_tree.equals(templates_tuple[1]) or exp_tree.equals(templates_tuple[1].reverse()):
-                        templates_tuple[0].append((text, exp))
+                        templates_tuple[0].append((qid, exp))
                         break
                 else:
-                    templates_tuples.append(([(text, exp)], exp_tree))
+                    templates_tuples.append(([(qid, exp)], exp_tree))
             except NotImplementedError:
                 # print(exp)
                 pass
 
     print(templates_tuples)
-    with open("template_info.csv", 'w') as f:
-        for templates_tuple in templates_tuples:
-            f.write(str(len(templates_tuple[0])) + '\n')
-            if len(templates_tuple[0]) == 448:
-                templates_tuple[1].print_tree()
+    output_template_label(templates_tuples)
+    # with open("template_info.csv", 'w') as f:
+    #     for templates_tuple in templates_tuples:
+    #         f.write(str(len(templates_tuple[0])) + '\n')
+
+
