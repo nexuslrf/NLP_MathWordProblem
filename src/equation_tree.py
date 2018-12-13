@@ -259,13 +259,13 @@ if __name__ == "__main__":
     # tree = EquationTree(operator=Operators.times, left=left, right=4)
     # tree.print_tree()
 
-    tree2 = TemplateTree.build_with_exp("2*2=999")
+    tree2 = TemplateTree.build_with_exp("999 = ((8.0 + 3.0) - 5.0)")
     tree2.print_tree()
-    tree2.reverse().print_tree()
-
-    tree3 = TemplateTree.build_with_exp("999=2*2")
-
-    print(tree2.reverse().equals(tree3))
+    # tree2.reverse().print_tree()
+    #
+    # tree3 = TemplateTree.build_with_exp("999=2*2")
+    #
+    # print(tree2.reverse().equals(tree3))
 
     # print(tree2.calculate())
     #
